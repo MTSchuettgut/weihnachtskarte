@@ -31,6 +31,9 @@
     opacity:0; transform:scale(.9); transition:opacity 1.2s ease, transform 1.2s ease; }
   .figur.an { opacity:1; transform:none; }
   .figur video { display:block; width:100%; height:auto; }
+  .quer { display:none; position:fixed; inset:0; z-index:10; background:var(--grund); color:var(--text);
+    align-items:center; justify-content:center; text-align:center; padding:24px; font-size:1.2rem; line-height:1.4; }
+  @media (orientation: landscape) and (max-height: 520px) { .quer { display:flex; } }
 </style>
 </head>
 <body>
@@ -52,6 +55,8 @@
     <button class="leise" id="nochmal" type="button">Noch einmal</button>
   </div>
 </div>
+
+<div class="quer" role="note">Bitte halten Sie das Handy hochkant,<br>dann sieht die Karte am besten aus.</div>
 
 <audio id="stimme" src="gruss.mp3" preload="none"></audio>
 <audio id="musik" src="musik.mp3" loop preload="none"></audio>
