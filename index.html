@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Weihnachtsgruß von MT Schüttguttechnik</title>
+<style>
+  :root { --text:#f4f7fb; --akzent:#f2c14e; --grund:#17233a; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--grund); overflow:hidden;
+    font-family: Georgia, "Times New Roman", serif; color:var(--text); }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:manipulation; }
+  .hinweis { position:fixed; left:0; right:0; bottom:calc(12vh + env(safe-area-inset-bottom)); text-align:center; padding:0 16px; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:999px; padding:14px 34px; font-size:1.15rem;
+    background:var(--akzent); color:#2a2208; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  button.leise { background:#3b5278; color:#fff; padding:8px 16px; font-size:.9rem; box-shadow:none; }
+  button:focus-visible { outline:3px solid #fff; outline-offset:3px; }
+  .hinweis button { animation: puls 1.8s ease-in-out infinite; }
+  @keyframes puls { 50% { transform:scale(1.06); } }
+  .gruss { position:fixed; left:0; right:0; bottom:0; padding:0 16px calc(2vh + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
+    opacity:0; transform:translateY(12px); transition:opacity 1.4s ease, transform 1.4s ease; pointer-events:none; }
+  .gruss.an { opacity:1; transform:none; pointer-events:auto; }
+  .gruss h1 { margin:0; font-size:clamp(1.5rem, 5.5vw, 2.4rem); color:#9a5f00; }
+  .gruss p { margin:0; max-width:36rem; font-size:clamp(.9rem, 3.2vw, 1.1rem); line-height:1.4; color:#10203a; }
+  .gruss p.name { font-style:italic; }
+  .knoepfe { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:2px; }
+  .figur { position:fixed; right:max(12px, env(safe-area-inset-right)); top:12px; width:clamp(84px, 20vw, 130px);
+    border-radius:14px; overflow:hidden; border:2px solid rgba(255,255,255,.55); box-shadow:0 6px 18px rgba(0,0,0,.45);
+    opacity:0; transform:scale(.9); transition:opacity 1.2s ease, transform 1.2s ease; }
+  .figur.an { opacity:1; transform:none; }
+  .figur video { display:block; width:100%; height:auto; }
+</style>
+</head>
+<body>
+<canvas id="buehne" aria-label="Eine Mischanlage mit Silo, Förderschnecke und Weihnachtsbaum in einer Winterlandschaft"></canvas>
+
+<div class="figur" id="figur"><video id="clip" src="clip.mp4" muted loop playsinline preload="auto" aria-label="Marko Täufert winkt freundlich"></video></div>
+
+<div class="hinweis" id="hinweis">
+  <button id="start" type="button">Start</button>
+</div>
+
+<div class="gruss" id="gruss">
+  <h1>Frohe Weihnachten!</h1>
+  <p id="text">Bei mir rieselt es zum Fest nur Schnee und Weihnachtsgrüße. Ich bedanke mich für ein Jahr guter, ehrlicher und vertrauensvoller Zusammenarbeit und äußerst interessanter Projekte. Kommen Sie gut ins neue Jahr. Und wenn es rieselt, rufen Sie an. Und wenn es nicht rieselt, rufen Sie auch an.</p>
+  <p class="name">Marko Täufert · MT Schüttguttechnik</p>
+  <div class="knoepfe">
+    <a id="rueck" hidden><button type="button">Gruß zurücksenden</button></a>
+    <button class="leise" id="ton" type="button" aria-pressed="true">Ton aus</button>
+    <button class="leise" id="nochmal" type="button">Noch einmal</button>
+  </div>
+</div>
+
+<audio id="stimme" src="gruss.mp3" preload="none"></audio>
+<audio id="musik" src="musik.mp3" loop preload="none"></audio>
+
+<script>
+"use strict";
+// ---- Einstellungen: hier anpassen ----
+const MAIL_ADRESSE = "";   // Adresse für den Rückgruß-Knopf; leer = Knopf bleibt unsichtbar
+const MAIL_BETREFF = "Weihnachtsgruß zurück";
+const MAIL_TEXT = "Guten Tag Herr Täufert,\n\nvielen Dank für Ihren Weihnachtsgruß. Ich wünsche Ihnen ebenfalls frohe Festtage und einen guten Start ins neue Jahr.\n\nBeste Grüße";
+const DAUER_BEFUELLEN_S = 9;  // so lange wird der Baum befüllt
+// --------------------------------------
+
+const cv = document.getElementById("buehne"), ctx = cv.getContext("2d");
+const el = id => document.getElementById(id);
+const klemme = (v, a, b) => Math.max(a, Math.min(b, v));
+let W, H, L;
+let zustand = "bereit";      // bereit -> rieselt -> fertig
+let fortschritt = 0;         // 0..1, Füllstand des Baums
+let tonAn = true;
+let mischWinkel = 0;
+const korn = [];             // Produkt aus der Förderschnecke in den Baum
+const strom2 = [];           // Produkt vom Mischer-Silo in den Mischer
+const rohr = [];             // Produkt im Auslauf und in der Schnecke
+const mix = [];              // gelbes und grünes Pulver im Mischer
+let startZeit = 0;
+let mixFuell = 0;            // Füllstand im Mischer 0..1, erst voll, dann wird gemischt
+const kerzen = [];
+const flocken = Array.from({length: 110}, () => ({x:Math.random(), y:Math.random(), r:1+Math.random()*2.4, v:.03+Math.random()*.07, d:Math.random()*6}));
+
+function layout() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W*dpr; cv.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  const boden = H * (W < H*.9 ? .58 : .70);
+  // Hauptsilo links, mit Füßen
+  const bw = klemme(Math.min(W*.24, H*.2), 50, 150), lh = H*.09, kh = bw*.5;
+  const bh = Math.max(40, Math.min(bw*1.3, boden - lh - kh - H*.09));
+  const sx = Math.max(bw*.5 + 10, W*.2), top = boden - lh - kh - bh;
+  // Mischer rechts
+  const mw = klemme(W*.25, 80, 140), mh = mw*.62, mcx = W - mw/2 - 10;
+  const mixBottom = boden - 14, mixTop = mixBottom - mh;
+  const bw2 = mw*.62, kh2 = bw2*.4;
+  const bh2 = Math.max(30, Math.min(bw2*1.1, mixTop - 10 - kh2 - H*.08)), top2 = mixTop - 10 - kh2 - bh2;
+  // Baum in der Mitte
+  const frei = (mcx - mw/2) - (sx + bw/2) - 20;
+  const tx = ((sx + bw/2) + (mcx - mw/2)) / 2;
+  const th = Math.max(80, Math.min(boden - H*.22, frei/.72, (boden-26)/1.16)), tw = th*.72;
+  const apexY = boden - th, R = Math.max(10, th*.08), ty = apexY - 2*R - 14;
+  L = {boden, bw, lh, kh, bh, sx, top, mw, mh, mcx, mixBottom, mixTop, bw2, kh2, bh2, top2, tx, th, tw, apexY, R,
+       S: {x: sx - 6, y: boden - 10}, E: {x: tx + 2, y: ty}};
+  // Kerzen: je Stufe links und rechts, an der Spitze der Stufe
+  const st = th*.08, y1 = boden - th*.68, y2 = boden - th*.36, s = klemme(th/300, .6, 1.3);
+  const stufen = [
+    {xf:.38, y:(boden-st) + .4*(y2-(boden-st)), thr:.36},
+    {xf:.31, y: y2 + .35*(y1-y2),               thr:.68},
+    {xf:.20, y: y1 + .29*(apexY-y1),            thr:1.0}];
+  kerzen.length = 0;
+  for (const u of stufen) for (const seite of [-1, 1]) kerzen.push({x: tx + seite*u.xf*tw, y: u.y, thr: u.thr, s, t: 0, ph: Math.random()*6});
+}
+addEventListener("resize", layout); layout();
+
+function silo(x, top, bw, bh, kh, farbe, kante) {
+  ctx.fillStyle = farbe; ctx.strokeStyle = kante; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.rect(x-bw/2, top, bw, bh); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-bw/2, top+bh); ctx.lineTo(x+bw/2, top+bh);
+  ctx.lineTo(x+bw*.08, top+bh+kh); ctx.lineTo(x-bw*.08, top+bh+kh); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = kante; ctx.beginPath(); ctx.moveTo(x-bw/2-3, top); ctx.lineTo(x, top-bw*.22); ctx.lineTo(x+bw/2+3, top); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.25)"; ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { const yy = top + bh*i/4; ctx.beginPath(); ctx.moveTo(x-bw/2, yy); ctx.lineTo(x+bw/2, yy); ctx.stroke(); }
+}
+
+function fuesse(x, yOben, bw, boden) {
+  ctx.strokeStyle = "#51698a"; ctx.lineWidth = Math.max(3, bw*.05);
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + s*bw*.4, yOben); ctx.lineTo(x + s*bw*.46, boden); ctx.stroke(); }
+  ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - bw*.4, yOben + (boden-yOben)*.25); ctx.lineTo(x + bw*.46, boden - (boden-yOben)*.35);
+  ctx.moveTo(x + bw*.4, yOben + (boden-yOben)*.25); ctx.lineTo(x - bw*.46, boden - (boden-yOben)*.35); ctx.stroke();
+  ctx.fillStyle = "#3f5373"; for (const s of [-1, 1]) ctx.fillRect(x + s*bw*.46 - 6, boden-4, 12, 4);
+}
+
+function baum(cx, basis, th, tw) {
+  const y1 = basis - th*.68, y2 = basis - th*.36, st = th*.08, apex = basis - th;
+  ctx.beginPath(); ctx.moveTo(cx, apex);
+  ctx.lineTo(cx+tw*.28, y1); ctx.lineTo(cx+tw*.14, y1);
+  ctx.lineTo(cx+tw*.40, y2); ctx.lineTo(cx+tw*.20, y2);
+  ctx.lineTo(cx+tw*.50, basis-st); ctx.lineTo(cx+tw*.07, basis-st); ctx.lineTo(cx+tw*.07, basis);
+  ctx.lineTo(cx-tw*.07, basis); ctx.lineTo(cx-tw*.07, basis-st); ctx.lineTo(cx-tw*.50, basis-st);
+  ctx.lineTo(cx-tw*.20, y2); ctx.lineTo(cx-tw*.40, y2); ctx.lineTo(cx-tw*.14, y1); ctx.lineTo(cx-tw*.28, y1); ctx.closePath();
+}
+
+function stern(x, y, r) {
+  const gl = ctx.createRadialGradient(x, y, 0, x, y, r*2.6); gl.addColorStop(0, "rgba(255,226,120,.55)"); gl.addColorStop(1, "rgba(255,226,120,0)");
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, r*2.6, 0, 6.3); ctx.fill();
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI/2 + i*Math.PI/5, rr = i%2 ? r*.45 : r; ctx.lineTo(x+Math.cos(a)*rr, y+Math.sin(a)*rr); }
+  ctx.closePath(); ctx.fillStyle = "#f6cf55"; ctx.fill();
+}
+
+function kerze(k, jetzt) {
+  const cw = 6*k.s, ch = 15*k.s;
+  ctx.fillStyle = "#f5efe2"; ctx.fillRect(k.x - cw/2, k.y - ch, cw, ch);
+  ctx.fillStyle = "#c9bfa6"; ctx.fillRect(k.x - cw/2, k.y - ch, cw, 2);
+  const f = klemme(k.t/.6, 0, 1);
+  if (f <= 0) return;
+  const fl = .85 + .15*Math.sin(jetzt/90 + k.ph), fy = k.y - ch - 5*k.s*fl;
+  const gl = ctx.createRadialGradient(k.x, fy, 0, k.x, fy, 26*k.s); gl.addColorStop(0, `rgba(255,214,110,${.6*f})`); gl.addColorStop(1, "rgba(255,214,110,0)");
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(k.x, fy, 26*k.s, 0, 6.3); ctx.fill();
+  ctx.fillStyle = `rgba(255,236,150,${f})`; ctx.beginPath(); ctx.ellipse(k.x, fy, 3.2*k.s*f, 6.5*k.s*fl*f, 0, 0, 6.3); ctx.fill();
+  ctx.fillStyle = `rgba(255,170,60,${f})`; ctx.beginPath(); ctx.ellipse(k.x, fy + 1.5*k.s, 1.8*k.s*f, 3.5*k.s*fl*f, 0, 0, 6.3); ctx.fill();
+}
+
+function schnecke(jetzt, laeuft) {
+  const {S, E} = L, ang = Math.atan2(E.y - S.y, E.x - S.x), len = Math.hypot(E.x - S.x, E.y - S.y);
+  // Stütze unter der Schnecke
+  const px = S.x + (E.x - S.x)*.62, py = S.y + (E.y - S.y)*.62;
+  ctx.strokeStyle = "#51698a"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, L.boden); ctx.stroke();
+  ctx.save(); ctx.translate(S.x, S.y); ctx.rotate(ang);
+  ctx.fillStyle = "#7a8fae"; ctx.strokeStyle = "#3f5373"; ctx.lineWidth = 2;
+  ctx.fillRect(0, -8, len, 16); ctx.strokeRect(0, -8, len, 16);
+  ctx.strokeStyle = "rgba(230,238,250,.75)"; ctx.lineWidth = 2.5;
+  const off = laeuft ? (jetzt/28) % 14 : 0;
+  for (let x = off; x < len - 6; x += 14) { ctx.beginPath(); ctx.moveTo(x, -6); ctx.lineTo(x + 6, 6); ctx.stroke(); }
+  ctx.fillStyle = "#3f5373"; ctx.fillRect(-16, -11, 18, 22);          // Antriebsmotor
+  ctx.restore();
+  // Auslaufstutzen am oberen Ende
+  ctx.fillStyle = "#5d7291"; ctx.beginPath(); ctx.moveTo(E.x-7, E.y+3); ctx.lineTo(E.x+13, E.y+3); ctx.lineTo(E.x+8, E.y+16); ctx.lineTo(E.x+2, E.y+16); ctx.closePath(); ctx.fill();
+}
+
+function initMix() {
+  mix.length = 0;
+  for (let i = 0; i < 420; i++) {
+    const t = Math.random()*6.283, rho = .2 + Math.random()*.8;
+    mix.push({t, rho, w: .8 + Math.random()*.8, gelb: Math.cos(t) < 0});   // links gelb, rechts grün
+  }
+}
+initMix();
+const rund = v => Math.sign(v) * Math.pow(Math.abs(v), .6);
+
+function grossSaecke() {
+  const {mcx, mw, mixTop, top2, boden} = L, x0 = mcx - mw/2, x1 = mcx + mw/2;
+  const stand = 1 - mixFuell;                       // 1 = voll, 0 = leer
+  const yb = top2 + 16, ende = mixTop - 10, body = (ende - yb)*.8, bwid = mw*.44;
+  // Gestell mit Querbalken
+  ctx.strokeStyle = "#51698a"; ctx.lineWidth = 4;
+  for (const x of [x0 - 4, x1 + 4]) { ctx.beginPath(); ctx.moveTo(x, top2); ctx.lineTo(x, boden); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x0 - 8, top2); ctx.lineTo(x1 + 8, top2); ctx.stroke();
+  const saecke = [[mcx - mw*.25, "#efe3a6", "#e8c93f"], [mcx + mw*.25, "#bfe3c7", "#3fae5c"]];
+  for (const [cx, hell, voll] of saecke) {
+    const oben = bwid*(.55 + .45*stand)/2, unten = bwid/2;
+    // Aufhängeschlaufen
+    ctx.strokeStyle = "#3f5373"; ctx.lineWidth = 2;
+    for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx + sg*oben, yb); ctx.lineTo(cx + sg*oben*.7, top2); ctx.stroke(); }
+    // Auslaufstutzen
+    ctx.fillStyle = hell; ctx.strokeStyle = "#51698a"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx - unten*.45, yb + body - 1); ctx.lineTo(cx + unten*.45, yb + body - 1);
+    ctx.lineTo(cx + unten*.2, ende); ctx.lineTo(cx - unten*.2, ende); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // Sack: Gewebe, darin das Pulver, das nach unten absinkt
+    const sack = () => { ctx.beginPath(); ctx.moveTo(cx - oben, yb); ctx.lineTo(cx + oben, yb); ctx.lineTo(cx + unten, yb + body); ctx.lineTo(cx - unten, yb + body); ctx.closePath(); };
+    sack(); ctx.fillStyle = hell; ctx.fill();
+    ctx.save(); sack(); ctx.clip();
+    const ebene = yb + body - body*stand;
+    ctx.fillStyle = voll; ctx.fillRect(cx - unten, ebene, unten*2, yb + body - ebene);
+    ctx.restore();
+    sack(); ctx.strokeStyle = "#51698a"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = "rgba(81,105,138,.45)"; ctx.lineWidth = 1;       // Nähte
+    ctx.beginPath(); ctx.moveTo(cx - oben*.5, yb); ctx.lineTo(cx - unten*.5, yb + body); ctx.moveTo(cx + oben*.5, yb); ctx.lineTo(cx + unten*.5, yb + body); ctx.stroke();
+  }
+}
+
+function mischer(jetzt, laeuft, dt) {
+  const {mcx, mw, mh, mixTop, mixBottom, boden} = L, x0 = mcx - mw/2, x1 = mcx + mw/2;
+  const flaeche = mixTop + mh*.45, welle = mixTop + mh*.55;
+  // Silo über dem Mischer mit Füßen hinter dem Mischer
+  grossSaecke();
+  ctx.fillStyle = "#3f5373"; ctx.fillRect(x0 + 8, mixBottom - 2, 12, 16); ctx.fillRect(x1 - 20, mixBottom - 2, 12, 16);
+  // liegender Trog: Rechteck mit leicht gerundeten unteren Ecken
+  const rr = mh*.16;
+  const wanne = () => { ctx.beginPath(); ctx.moveTo(x0, mixTop); ctx.lineTo(x0, mixBottom - rr);
+    ctx.quadraticCurveTo(x0, mixBottom, x0 + rr, mixBottom); ctx.lineTo(x1 - rr, mixBottom);
+    ctx.quadraticCurveTo(x1, mixBottom, x1, mixBottom - rr); ctx.lineTo(x1, mixTop); ctx.closePath(); };
+  wanne(); ctx.fillStyle = "#6d83a3"; ctx.fill(); ctx.strokeStyle = "#3f5373"; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.save(); wanne(); ctx.clip();
+  ctx.fillStyle = "#33445f"; ctx.fillRect(x0, mixTop, mw, mh);
+  // Pulver: oben nach rechts, unten nach links (Umwälzung im ganzen Trog)
+  ctx.save();
+  const hoehe = (mixBottom - flaeche)*mixFuell;
+  ctx.beginPath(); ctx.rect(x0, mixBottom - hoehe, mw, hoehe + 2); ctx.clip();
+  const r = Math.max(1.8, mw*.021), A = mw/2 - 5, B = (mixBottom - flaeche)/2 - 3, cy = flaeche + (mixBottom - flaeche)/2;
+  for (const p of mix) {
+    if (laeuft) p.t += p.w*dt;
+    ctx.fillStyle = p.gelb ? "#f1d56e" : "#4fbf6a";
+    ctx.beginPath(); ctx.arc(mcx + A*p.rho*rund(Math.cos(p.t)), cy + B*p.rho*rund(Math.sin(p.t)), r, 0, 6.3); ctx.fill();
+  }
+  ctx.restore();
+  // Welle mit zwei gegenläufigen Bändern (Doppelband-Mischer, Seitenansicht)
+  const k = 6.283/(mw/3.2), R = mh*.38, lw = Math.max(2.5, mw*.026);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const band = (rad, vz, farbe) => {
+    ctx.beginPath();
+    for (let x = x0 + 3; x <= x1 - 3; x += 3) { const y = welle + rad*Math.cos(k*(x - x0)*vz - mischWinkel); x === x0 + 3 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.strokeStyle = "#2a3a55"; ctx.lineWidth = lw + 2.5; ctx.stroke();
+    ctx.strokeStyle = farbe; ctx.lineWidth = lw; ctx.stroke();
+  };
+  ctx.strokeStyle = "#b9c8de"; ctx.lineWidth = Math.max(1.5, mw*.014);   // Streben von der Welle zum äußeren Band
+  for (let x = x0 + mw/6.4; x < x1; x += mw/3.2) { ctx.beginPath(); ctx.moveTo(x, welle); ctx.lineTo(x, welle + R*Math.cos(k*(x - x0) - mischWinkel)); ctx.stroke(); }
+  band(R, 1, "#dfe8f5");
+  band(R*.8, -1, "#b4c4dc");
+  ctx.strokeStyle = "#dfe8f5"; ctx.lineWidth = Math.max(3, mw*.032); ctx.beginPath(); ctx.moveTo(x0 + 2, welle); ctx.lineTo(x1 - 2, welle); ctx.stroke();
+  ctx.restore(); ctx.lineCap = "butt";
+  // Rand oben und Motor
+  ctx.fillStyle = "#9fb2cf"; ctx.fillRect(x0 - 3, mixTop - 4, mw + 6, 6); ctx.strokeStyle = "#3f5373"; ctx.lineWidth = 1.5; ctx.strokeRect(x0 - 3, mixTop - 4, mw + 6, 6);
+  ctx.fillStyle = "#3f5373"; ctx.fillRect(x0 - 12, welle - 10, 12, 20);
+  if (laeuft) { ctx.fillStyle = "#6fcf7a"; ctx.beginPath(); ctx.arc(x0 - 6, welle, 2.5, 0, 6.3); ctx.fill(); }
+}
+
+let letzte = performance.now();
+function bild(jetzt) {
+  const dt = Math.min((jetzt-letzte)/1000, .05); letzte = jetzt;
+  const rieselt = zustand === "rieselt", mischt = zustand !== "bereit";
+  const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#1a2745"); g.addColorStop(.6,"#35527f"); g.addColorStop(1,"#6d8cb5");
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = "#e9f0f8"; ctx.fillRect(0, L.boden, W, H-L.boden);
+  ctx.fillStyle = "#cfdceb"; ctx.fillRect(0, L.boden, W, 5);
+
+  // Hauptsilo mit Füßen und Füllstandsanzeige
+  fuesse(L.sx, L.top + L.bh, L.bw, L.boden);
+  silo(L.sx, L.top, L.bw, L.bh, L.kh, "#aebfd6", "#51698a");
+  const gx = L.sx + L.bw*.22, gy = L.top + 10, gh = L.bh - 20, stand = 1 - fortschritt*.85;
+  ctx.fillStyle = "#2f3f5a"; ctx.fillRect(gx, gy, 10, gh);
+  ctx.fillStyle = "#e8c98d"; ctx.fillRect(gx, gy + gh*(1-stand), 10, gh*stand);
+  ctx.strokeStyle = "#51698a"; ctx.lineWidth = 1.5; ctx.strokeRect(gx, gy, 10, gh);
+  // Auslauf vom Silo in die Schnecke
+  ctx.fillStyle = "#5d7291"; ctx.fillRect(L.sx - 5, L.top + L.bh + L.kh, 10, Math.max(0, L.S.y - (L.top + L.bh + L.kh)));
+  schnecke(jetzt, rieselt);
+
+  // Baum als Füllform
+  ctx.save(); baum(L.tx, L.boden, L.th, L.tw);
+  ctx.fillStyle = "rgba(255,255,255,.10)"; ctx.fill(); ctx.clip();
+  const spiegel = L.boden - L.th*fortschritt;
+  ctx.fillStyle = "#e8c98d"; ctx.fillRect(0, spiegel, W, L.boden - spiegel + 2);
+  ctx.fillStyle = "rgba(120,80,30,.35)";
+  for (let i=0;i<70;i++){ const px=(i*53%97)/97*L.tw + L.tx-L.tw/2, py=spiegel+((i*37%89)/89)*(L.boden-spiegel); ctx.fillRect(px,py,2,2); }
+  ctx.restore();
+  ctx.save(); baum(L.tx, L.boden, L.th, L.tw); ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  for (const k of kerzen) { k.t = fortschritt >= k.thr - 1e-6 ? k.t + dt : 0; kerze(k, jetzt); }
+  if (fortschritt >= 1) stern(L.tx, L.apexY - L.R*.7, L.R);
+
+  // Mischer mit Silo darüber
+  mischWinkel += dt * (mixFuell >= 1 ? (rieselt ? 4 : 3) : 0);
+  mischer(jetzt, mischt && mixFuell >= 1, dt);
+
+  // Produkt: Schnecke -> Baum
+  if (rieselt) {
+    if (jetzt - startZeit > 1800) fortschritt = Math.min(1, fortschritt + dt/DAUER_BEFUELLEN_S);
+    for (let n = Math.round(dt*170); n > 0; n--) rohr.push({ph: 0, y: L.top + L.bh + L.kh, u: 0, off: (Math.random()-.5)*10});
+    mixFuell = Math.min(1, mixFuell + dt/4.5);
+    if (mixFuell < 1) for (let i=0;i<4;i++) {
+      const links = i % 2 === 0;
+      strom2.push({x:L.mcx + (links ? -1 : 1)*L.mw*.25 + (Math.random()-.5)*L.mw*.05, y:L.mixTop - 10, v:30+Math.random()*40, r:1.3+Math.random()*1.2, gelb: links});
+    }
+    if (fortschritt >= 1) fertigMachen();
+  }
+  // Produkt im Auslauf und in der Schnecke
+  const dx = L.E.x - L.S.x, dy = L.E.y - L.S.y, tl = Math.hypot(dx, dy), nx = -dy/tl, ny = dx/tl;
+  ctx.fillStyle = "#e8c98d";
+  for (let i = rohr.length - 1; i >= 0; i--) {
+    const p = rohr[i];
+    if (p.ph === 0) {
+      p.y += 140*dt;
+      if (p.y < L.S.y) { ctx.beginPath(); ctx.arc(L.sx + p.off*.35, p.y, 1.8, 0, 6.3); ctx.fill(); continue; }
+      p.ph = 1; p.u = 0;
+    }
+    p.u += dt/1.5;
+    if (p.u >= 1) { korn.push({x:L.E.x + 5 + (Math.random()-.5)*5, y:L.E.y + 16, v:30+Math.random()*40, r:1.4+Math.random()*1.4}); rohr.splice(i, 1); continue; }
+    ctx.beginPath(); ctx.arc(L.S.x + dx*p.u + nx*p.off*.55, L.S.y + dy*p.u + ny*p.off*.55, 2, 0, 6.3); ctx.fill();
+  }
+  ctx.fillStyle = "#e8c98d";
+  for (let i=korn.length-1;i>=0;i--) {
+    const p = korn[i]; p.v += 900*dt; p.y += p.v*dt;
+    if (p.y >= Math.max(L.E.y + 16, L.boden - L.th*fortschritt)) { korn.splice(i,1); continue; }
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.3); ctx.fill();
+  }
+  for (let i=strom2.length-1;i>=0;i--) {
+    const p = strom2[i]; p.v += 900*dt; p.y += p.v*dt;
+    if (p.y >= L.mixBottom - (L.mixBottom - (L.mixTop + L.mh*.45))*mixFuell) { strom2.splice(i,1); continue; }
+    ctx.fillStyle = p.gelb ? "#f1d56e" : "#4fbf6a";
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.3); ctx.fill();
+  }
+
+  // Schnee
+  ctx.fillStyle = "rgba(255,255,255,.9)";
+  for (const f of flocken) {
+    f.y += f.v*dt; f.x += Math.sin(jetzt/1500 + f.d)*.012*dt*10;
+    if (f.y > 1) { f.y = -.02; f.x = Math.random(); }
+    ctx.beginPath(); ctx.arc(f.x*W, f.y*H, f.r, 0, 6.3); ctx.fill();
+  }
+  requestAnimationFrame(bild);
+}
+requestAnimationFrame(bild);
+
+function los() {
+  if (zustand !== "bereit") return;
+  zustand = "rieselt"; fortschritt = 0; korn.length = 0; strom2.length = 0; rohr.length = 0; initMix(); mixFuell = 0; startZeit = performance.now();
+  el("hinweis").style.display = "none";
+  // Ton darf erst nach einem Klick starten
+  for (const id of ["musik","stimme"]) { const a = el(id); a.currentTime = 0; a.volume = id==="musik" ? .35 : 1; if (tonAn) a.play().catch(()=>{}); }
+}
+function fertigMachen() {
+  zustand = "fertig";
+  el("gruss").classList.add("an"); el("figur").classList.add("an");
+  el("clip").play().catch(()=>{});
+}
+function nochmal() {
+  zustand = "bereit"; fortschritt = 0; korn.length = 0; strom2.length = 0; rohr.length = 0; initMix(); mixFuell = 0;
+  el("gruss").classList.remove("an"); el("figur").classList.remove("an");
+  el("clip").pause(); el("stimme").pause(); el("musik").pause();
+  el("hinweis").style.display = "";
+}
+el("start").addEventListener("click", los);
+cv.addEventListener("click", e => {
+  if (Math.abs(e.clientX - L.sx) < L.bw/2 + 10 && e.clientY > L.top - 20 && e.clientY < L.boden) los();
+});
+el("nochmal").addEventListener("click", nochmal);
+el("ton").addEventListener("click", () => {
+  tonAn = !tonAn; el("ton").textContent = tonAn ? "Ton aus" : "Ton an"; el("ton").setAttribute("aria-pressed", String(tonAn));
+  for (const id of ["musik","stimme"]) { const a = el(id); if (tonAn) { if (zustand !== "bereit") a.play().catch(()=>{}); } else a.pause(); }
+});
+if (MAIL_ADRESSE) {
+  const a = el("rueck"); a.hidden = false;
+  a.href = "mailto:" + MAIL_ADRESSE + "?subject=" + encodeURIComponent(MAIL_BETREFF) + "&body=" + encodeURIComponent(MAIL_TEXT);
+}
+</script>
+</body>
+</html>
