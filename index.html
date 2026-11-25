@@ -22,9 +22,16 @@
     display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
     opacity:0; transform:translateY(12px); transition:opacity 1.4s ease, transform 1.4s ease; pointer-events:none; }
   .gruss.an { opacity:1; transform:none; pointer-events:auto; }
-  .gruss h1 { margin:0; font-size:clamp(1.5rem, 5.5vw, 2.4rem); color:#9a5f00; }
-  .gruss p { margin:0; max-width:36rem; font-size:clamp(.9rem, 3.2vw, 1.1rem); line-height:1.4; color:#10203a; }
-  .gruss p.name { font-style:italic; }
+  .festlich { font-family:"Snell Roundhand","Apple Chancery","Segoe Script","Lucida Handwriting","Brush Script MT",cursive; }
+  .titel { position:fixed; left:16px; top:14px; margin:0; font-weight:normal; line-height:1.0; color:#f6cf55;
+    text-shadow:0 2px 0 #9a5f00, 0 0 16px rgba(255,214,110,.65); pointer-events:none; }
+  .titel div { white-space:nowrap; }
+  .titel .b { display:inline-block; opacity:0; transform:translateY(-90px) scale(.3) rotate(-14deg); }
+  .titel.an .b { animation:flug .9s cubic-bezier(.2,1.5,.4,1) forwards; animation-delay:calc(var(--i) * 75ms); }
+  @keyframes flug { to { opacity:1; transform:none; } }
+  .gruss p { margin:0; max-width:36rem; font-family:"Palatino Linotype", Palatino, Georgia, serif; font-style:italic;
+    font-size:clamp(.95rem, 3.4vw, 1.15rem); line-height:1.45; color:#10203a; }
+  .gruss p.name { font-style:normal; font-size:clamp(1.3rem, 5vw, 1.7rem); color:#9a5f00; }
   .knoepfe { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:2px; }
   .figur { position:fixed; right:max(12px, env(safe-area-inset-right)); top:12px; width:clamp(84px, 20vw, 130px);
     border-radius:14px; overflow:hidden; border:2px solid rgba(255,255,255,.55); box-shadow:0 6px 18px rgba(0,0,0,.45);
@@ -45,10 +52,11 @@
   <button id="start" type="button">Start</button>
 </div>
 
+<h1 class="titel festlich" id="titel" aria-label="Frohe Weihnachten!"></h1>
+
 <div class="gruss" id="gruss">
-  <h1>Frohe Weihnachten!</h1>
   <p id="text">Bei mir rieselt es zum Fest nur Schnee und Weihnachtsgrüße. Ich bedanke mich für ein Jahr guter, ehrlicher und vertrauensvoller Zusammenarbeit und äußerst interessanter Projekte. Kommen Sie gut ins neue Jahr. Und wenn es rieselt, rufen Sie an. Und wenn es nicht rieselt, rufen Sie auch an.</p>
-  <p class="name">Marko Täufert · MT Schüttguttechnik</p>
+  <p class="name festlich">Marko Täufert · MT Schüttguttechnik</p>
   <div class="knoepfe">
     <a id="rueck" hidden><button type="button">Gruß zurücksenden</button></a>
     <button class="leise" id="ton" type="button" aria-pressed="true">Ton aus</button>
@@ -117,7 +125,16 @@ function layout() {
   kerzen.length = 0;
   for (const u of stufen) for (const seite of [-1, 1]) kerzen.push({x: tx + seite*u.xf*tw, y: u.y, thr: u.thr, s, t: 0, ph: Math.random()*6});
 }
-addEventListener("resize", layout); layout();
+function titelBauen() {
+  let i = 0;
+  el("titel").innerHTML = ["Frohe", "Weihnachten!"].map(w => "<div>" + [...w].map(c => '<span class="b" style="--i:' + (i++) + '">' + c + "</span>").join("") + "</div>").join("");
+}
+function titelLayout() {   // Platz oberhalb der Silos, links neben dem Clip
+  const figB = Math.min(Math.max(84, W*.2), 130), frei = W - 16 - figB - 24;
+  const hoehe = Math.max(40, Math.min(L.top - L.bw*.22, L.E.y) - 28);
+  el("titel").style.fontSize = Math.max(18, Math.min(frei/5.6, hoehe/2.1, 60)) + "px";
+}
+addEventListener("resize", () => { layout(); titelLayout(); }); layout(); titelBauen(); titelLayout();
 
 function silo(x, top, bw, bh, kh, farbe, kante) {
   ctx.fillStyle = farbe; ctx.strokeStyle = kante; ctx.lineWidth = 2;
@@ -366,12 +383,12 @@ function los() {
 }
 function fertigMachen() {
   zustand = "fertig";
-  el("gruss").classList.add("an"); el("figur").classList.add("an");
+  el("gruss").classList.add("an"); el("figur").classList.add("an"); el("titel").classList.add("an");
   el("clip").play().catch(()=>{});
 }
 function nochmal() {
   zustand = "bereit"; fortschritt = 0; korn.length = 0; strom2.length = 0; rohr.length = 0; initMix(); mixFuell = 0;
-  el("gruss").classList.remove("an"); el("figur").classList.remove("an");
+  el("gruss").classList.remove("an"); el("figur").classList.remove("an"); el("titel").classList.remove("an");
   el("clip").pause(); el("stimme").pause(); el("musik").pause();
   el("hinweis").style.display = "";
 }
