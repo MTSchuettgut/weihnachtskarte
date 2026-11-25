@@ -31,9 +31,9 @@
   @keyframes flug { to { opacity:1; transform:none; } }
   .gruss p { margin:0; max-width:36rem; font-family:"Palatino Linotype", Palatino, Georgia, serif; font-style:italic;
     font-size:clamp(.95rem, 3.4vw, 1.15rem); line-height:1.45; color:#10203a; }
-  .gruss p.name { font-style:normal; font-size:clamp(1.9rem, 8vw, 2.6rem); color:#1d2f57; display:inline-block;
-    transform:rotate(-4deg); margin:4px 0 2px; line-height:1.1; }
-  .gruss p.name::after { content:""; display:block; height:8px; margin:-3px -6px 0 18px; border-bottom:2px solid #1d2f57; border-radius:50%; transform:rotate(1.5deg); }
+  .gruss p.name { font-family:"Snell Roundhand","Apple Chancery","Segoe Script","Lucida Handwriting","Brush Script MT",cursive;
+    font-style:normal; font-size:clamp(1.4rem, 6vw, 1.9rem); color:#1d2f57; display:inline-block;
+    transform:rotate(-3deg); margin:2px 0; line-height:1.1; }
   .logo { display:block; height:clamp(34px, 7vh, 56px); width:auto; margin-top:6px; }
   .knoepfe { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:2px; }
   .figur { position:fixed; right:max(12px, env(safe-area-inset-right)); top:12px; width:clamp(84px, 20vw, 130px);
@@ -60,12 +60,12 @@
 <div class="gruss" id="gruss">
   <p id="text">Bei mir rieselt es zum Fest nur Schnee und Weihnachtsgrüße. Ich bedanke mich für ein Jahr guter, ehrlicher und vertrauensvoller Zusammenarbeit und äußerst interessanter Projekte. Kommen Sie gut ins neue Jahr. Und wenn es rieselt, rufen Sie an. Und wenn es nicht rieselt, rufen Sie auch an.</p>
   <p class="name festlich">Marko Täufert</p>
+  <img class="logo" src="logo.svg" alt="MT Schüttguttechnik">
   <div class="knoepfe">
     <a id="rueck" hidden><button type="button">Gruß zurücksenden</button></a>
     <button class="leise" id="ton" type="button" aria-pressed="true">Ton aus</button>
     <button class="leise" id="nochmal" type="button">Noch einmal</button>
   </div>
-  <img class="logo" src="logo.svg" alt="MT Schüttguttechnik">
 
 </div>
 
