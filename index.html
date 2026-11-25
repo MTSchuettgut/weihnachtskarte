@@ -19,7 +19,7 @@
   .hinweis button { animation: puls 1.8s ease-in-out infinite; }
   @keyframes puls { 50% { transform:scale(1.06); } }
   .gruss { position:fixed; left:0; right:0; bottom:0; padding:0 16px calc(2vh + env(safe-area-inset-bottom));
-    display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center;
     opacity:0; transform:translateY(12px); transition:opacity 1.4s ease, transform 1.4s ease; pointer-events:none; }
   .gruss.an { opacity:1; transform:none; pointer-events:auto; }
   .festlich { font-family:"Snell Roundhand","Apple Chancery","Segoe Script","Lucida Handwriting","Brush Script MT",cursive; }
@@ -80,6 +80,7 @@
 const MAIL_ADRESSE = "";   // Adresse für den Rückgruß-Knopf; leer = Knopf bleibt unsichtbar
 const MAIL_BETREFF = "Weihnachtsgruß zurück";
 const MAIL_TEXT = "Guten Tag Herr Täufert,\n\nvielen Dank für Ihren Weihnachtsgruß. Ich wünsche Ihnen ebenfalls frohe Festtage und einen guten Start ins neue Jahr.\n\nBeste Grüße";
+const DURCHLAUF_SCHNECKE_S = 2.8;  // so lange braucht das Produkt durch die Schnecke
 const DAUER_BEFUELLEN_S = 9;  // so lange wird der Baum befüllt
 // --------------------------------------
 
@@ -199,7 +200,7 @@ function schnecke(jetzt, laeuft) {
   ctx.fillStyle = "#7a8fae"; ctx.strokeStyle = "#3f5373"; ctx.lineWidth = 2;
   ctx.fillRect(0, -8, len, 16); ctx.strokeRect(0, -8, len, 16);
   ctx.strokeStyle = "rgba(230,238,250,.75)"; ctx.lineWidth = 2.5;
-  const off = laeuft ? (jetzt/28) % 14 : 0;
+  const off = laeuft ? (jetzt/1000 * len/DURCHLAUF_SCHNECKE_S) % 14 : 0;   // Gang der Schnecke läuft mit dem Produkt
   for (let x = off; x < len - 6; x += 14) { ctx.beginPath(); ctx.moveTo(x, -6); ctx.lineTo(x + 6, 6); ctx.stroke(); }
   ctx.fillStyle = "#3f5373"; ctx.fillRect(-16, -11, 18, 22);          // Antriebsmotor
   ctx.restore();
@@ -332,8 +333,8 @@ function bild(jetzt) {
 
   // Produkt: Schnecke -> Baum
   if (rieselt) {
-    if (jetzt - startZeit > 1800) fortschritt = Math.min(1, fortschritt + dt/DAUER_BEFUELLEN_S);
-    for (let n = Math.round(dt*170); n > 0; n--) rohr.push({ph: 0, y: L.top + L.bh + L.kh, u: 0, off: (Math.random()-.5)*10});
+    if (jetzt - startZeit > 3300) fortschritt = Math.min(1, fortschritt + dt/DAUER_BEFUELLEN_S);
+    for (let n = Math.round(dt*110); n > 0; n--) rohr.push({ph: 0, y: L.top + L.bh + L.kh, u: 0, off: (Math.random()-.5)*10});
     mixFuell = Math.min(1, mixFuell + dt/4.5);
     if (mixFuell < 1) for (let i=0;i<4;i++) {
       const links = i % 2 === 0;
@@ -351,7 +352,7 @@ function bild(jetzt) {
       if (p.y < L.S.y) { ctx.beginPath(); ctx.arc(L.sx + p.off*.35, p.y, 1.8, 0, 6.3); ctx.fill(); continue; }
       p.ph = 1; p.u = 0;
     }
-    p.u += dt/1.5;
+    p.u += dt/DURCHLAUF_SCHNECKE_S;
     if (p.u >= 1) { korn.push({x:L.E.x + 5 + (Math.random()-.5)*5, y:L.E.y + 16, v:30+Math.random()*40, r:1.4+Math.random()*1.4}); rohr.splice(i, 1); continue; }
     ctx.beginPath(); ctx.arc(L.S.x + dx*p.u + nx*p.off*.55, L.S.y + dy*p.u + ny*p.off*.55, 2, 0, 6.3); ctx.fill();
   }
