@@ -406,12 +406,36 @@ function bild(jetzt) {
 }
 requestAnimationFrame(bild);
 
+// Lautstärke der Musik über Web Audio: Safari auf dem iPhone ignoriert audio.volume
+let ac = null, gMusik = null;
+const MUSIK_LAUT = .35, MUSIK_LEISE = .14;
+function audioStarten() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!ac) {
+      ac = new AC(); gMusik = ac.createGain(); gMusik.gain.value = MUSIK_LAUT;
+      ac.createMediaElementSource(el("musik")).connect(gMusik); gMusik.connect(ac.destination);
+    }
+    if (ac.state === "suspended") ac.resume();
+  } catch (e) { ac = null; gMusik = null; }
+}
+function musikLeiser(leise) {
+  const ziel = leise ? MUSIK_LEISE : MUSIK_LAUT;
+  if (!gMusik) { el("musik").volume = ziel; return; }
+  const t = ac.currentTime;
+  gMusik.gain.cancelScheduledValues(t); gMusik.gain.setValueAtTime(gMusik.gain.value, t);
+  gMusik.gain.linearRampToValueAtTime(ziel, t + 1.2);
+}
+el("stimme").addEventListener("ended", () => musikLeiser(false));
+
 function los() {
   if (zustand !== "bereit") return;
   zustand = "rieselt"; fortschritt = 0; korn.length = 0; strom2.length = 0; rohr.length = 0; initMix(); mixFuell = 0; startZeit = performance.now();
   el("hinweis").style.display = "none";
   // Ton darf erst nach einem Klick starten
-  const m = el("musik"); m.currentTime = 0; m.volume = .35; if (tonAn) m.play().catch(()=>{});
+  audioStarten();
+  const m = el("musik"); m.currentTime = 0; if (tonAn) m.play().catch(()=>{});
   // Die Stimme startet erst, wenn der Gruß erscheint. iPhone erlaubt Ton nur nach einem Tippen:
   // deshalb hier einmal lautlos anspielen, damit sie später ohne neues Tippen läuft.
   const s = el("stimme"); s.volume = 1; s.muted = true;
@@ -421,12 +445,13 @@ function fertigMachen() {
   zustand = "fertig";
   el("gruss").classList.add("an"); el("figur").classList.add("an"); el("titel").classList.add("an");
   el("clip").play().catch(()=>{});
-  if (tonAn) { el("musik").volume = .2; el("stimme").play().catch(()=>{}); }   // Musik leiser unter der Stimme
+  musikLeiser(true);                                          // Musik weich leiser unter der Stimme
+  if (tonAn) el("stimme").play().catch(()=>{});
 }
 function nochmal() {
   zustand = "bereit"; fortschritt = 0; korn.length = 0; strom2.length = 0; rohr.length = 0; initMix(); mixFuell = 0;
   el("gruss").classList.remove("an"); el("figur").classList.remove("an"); el("titel").classList.remove("an");
-  el("clip").pause(); el("stimme").pause(); el("musik").pause();
+  el("clip").pause(); el("stimme").pause(); el("musik").pause(); musikLeiser(false);
   el("hinweis").style.display = "";
 }
 el("start").addEventListener("click", los);
