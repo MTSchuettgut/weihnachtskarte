@@ -68,7 +68,7 @@
 <h1 class="titel festlich" id="titel" aria-label="Frohe Weihnachten!"></h1>
 
 <div class="gruss" id="gruss">
-  <p id="text">Bei mir rieselt es zum Fest nur Schnee und Weihnachtsgrüße. Ich bedanke mich für ein Jahr guter, ehrlicher und vertrauensvoller Zusammenarbeit und äußerst interessanter Projekte. Kommen Sie gut ins neue Jahr. Und wenn es rieselt, rufen Sie an. Und wenn es nicht rieselt, rufen Sie auch an.</p>
+  <p id="text">Bei mir rieselt es zum Fest nur Schnee und Weihnachtsgrüße. Ich bedanke mich für ein Jahr guter, ehrlicher und vertrauensvoller Zusammenarbeit und äußerst interessanter Projekte. Kommen Sie gut ins neue Jahr. Und denken Sie dran, wenn es rieselt oder ob es nicht rieselt, rufen Sie an.</p>
   <p class="name festlich">Marko Täufert</p>
   <img class="logo" src="logo.svg" alt="MT Schüttguttechnik">
   <div class="knoepfe">
@@ -112,7 +112,7 @@ const mix = [];              // gelbes und grünes Pulver im Mischer
 let startZeit = 0;
 let mixFuell = 0;            // Füllstand im Mischer 0..1, erst voll, dann wird gemischt
 const kerzen = [];
-const flocken = Array.from({length: 110}, () => ({x:Math.random(), y:Math.random(), r:1+Math.random()*2.4, v:.03+Math.random()*.07, d:Math.random()*6}));
+const flocken = Array.from({length: 220}, () => ({x:Math.random(), y:Math.random(), r:1+Math.random()*2.4, v:.025+Math.random()*.055, d:Math.random()*6, a:Math.random()*6.28, s:(Math.random()-.5)*.6}));
 
 function layout() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -385,12 +385,23 @@ function bild(jetzt) {
   }
 
   // Schnee
-  ctx.fillStyle = "rgba(255,255,255,.9)";
+  // kleine Schneekristalle: sechs Arme, größere mit Zweigen, drehen sich langsam
+  ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 1.1; ctx.lineCap = "round"; ctx.beginPath();
   for (const f of flocken) {
-    f.y += f.v*dt; f.x += Math.sin(jetzt/1500 + f.d)*.012*dt*10;
+    f.y += f.v*dt; f.x += Math.sin(jetzt/1500 + f.d)*.012*dt*10; f.a += f.s*dt;
     if (f.y > 1) { f.y = -.02; f.x = Math.random(); }
-    ctx.beginPath(); ctx.arc(f.x*W, f.y*H, f.r, 0, 6.3); ctx.fill();
+    const x = f.x*W, y = f.y*H, l = 1.8 + f.r*1.1;
+    for (let k = 0; k < 3; k++) {
+      const a = f.a + k*Math.PI/3, c = Math.cos(a)*l, s = Math.sin(a)*l;
+      ctx.moveTo(x - c, y - s); ctx.lineTo(x + c, y + s);
+      if (f.r > 1.8) for (const sg of [-1, 1]) {
+        const bx = x + sg*c*.55, by = y + sg*s*.55, b = l*.35;
+        ctx.moveTo(bx, by); ctx.lineTo(bx + Math.cos(a + .9)*b*sg, by + Math.sin(a + .9)*b*sg);
+        ctx.moveTo(bx, by); ctx.lineTo(bx + Math.cos(a - .9)*b*sg, by + Math.sin(a - .9)*b*sg);
+      }
+    }
   }
+  ctx.stroke(); ctx.lineCap = "butt";
   requestAnimationFrame(bild);
 }
 requestAnimationFrame(bild);
