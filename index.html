@@ -400,12 +400,17 @@ function los() {
   zustand = "rieselt"; fortschritt = 0; korn.length = 0; strom2.length = 0; rohr.length = 0; initMix(); mixFuell = 0; startZeit = performance.now();
   el("hinweis").style.display = "none";
   // Ton darf erst nach einem Klick starten
-  for (const id of ["musik","stimme"]) { const a = el(id); a.currentTime = 0; a.volume = id==="musik" ? .35 : 1; if (tonAn) a.play().catch(()=>{}); }
+  const m = el("musik"); m.currentTime = 0; m.volume = .35; if (tonAn) m.play().catch(()=>{});
+  // Die Stimme startet erst, wenn der Gruß erscheint. iPhone erlaubt Ton nur nach einem Tippen:
+  // deshalb hier einmal lautlos anspielen, damit sie später ohne neues Tippen läuft.
+  const s = el("stimme"); s.volume = 1; s.muted = true;
+  s.play().then(() => { s.pause(); s.currentTime = 0; s.muted = false; }).catch(() => { s.muted = false; });
 }
 function fertigMachen() {
   zustand = "fertig";
   el("gruss").classList.add("an"); el("figur").classList.add("an"); el("titel").classList.add("an");
   el("clip").play().catch(()=>{});
+  if (tonAn) { el("musik").volume = .2; el("stimme").play().catch(()=>{}); }   // Musik leiser unter der Stimme
 }
 function nochmal() {
   zustand = "bereit"; fortschritt = 0; korn.length = 0; strom2.length = 0; rohr.length = 0; initMix(); mixFuell = 0;
@@ -421,7 +426,11 @@ el("nochmal").addEventListener("click", nochmal);
 el("ton").addEventListener("click", () => {
   tonAn = !tonAn; el("ton").classList.toggle("aus", !tonAn); el("ton").setAttribute("aria-pressed", String(tonAn));
   el("ton").setAttribute("aria-label", tonAn ? "Ton ausschalten" : "Ton einschalten");
-  for (const id of ["musik","stimme"]) { const a = el(id); if (tonAn) { if (zustand !== "bereit") a.play().catch(()=>{}); } else a.pause(); }
+  for (const id of ["musik","stimme"]) {
+    const a = el(id);
+    if (!tonAn) a.pause();
+    else if (id === "musik" ? zustand !== "bereit" : (zustand === "fertig" && !a.ended)) a.play().catch(()=>{});
+  }
 });
 if (MAIL_ADRESSE) {
   const a = el("rueck"); a.hidden = false;
