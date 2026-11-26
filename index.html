@@ -112,7 +112,7 @@ const mix = [];              // gelbes und grünes Pulver im Mischer
 let startZeit = 0;
 let mixFuell = 0;            // Füllstand im Mischer 0..1, erst voll, dann wird gemischt
 const kerzen = [];
-const flocken = Array.from({length: 220}, () => ({x:Math.random(), y:Math.random(), r:1+Math.random()*2.4, v:.025+Math.random()*.055, d:Math.random()*6, a:Math.random()*6.28, s:(Math.random()-.5)*.6}));
+const flocken = Array.from({length: 220}, () => ({x:Math.random(), y:Math.random(), r:1+Math.random()*2.4, v:.0125+Math.random()*.0275, d:Math.random()*6, a:Math.random()*6.28, s:(Math.random()-.5)*.6}));
 
 function layout() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -388,7 +388,7 @@ function bild(jetzt) {
   // kleine Schneekristalle: sechs Arme, größere mit Zweigen, drehen sich langsam
   ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 1.1; ctx.lineCap = "round"; ctx.beginPath();
   for (const f of flocken) {
-    f.y += f.v*dt; f.x += Math.sin(jetzt/1500 + f.d)*.012*dt*10; f.a += f.s*dt;
+    f.y += f.v*dt; f.x += Math.sin(jetzt/1500 + f.d)*.006*dt*10; f.a += f.s*dt*.5;
     if (f.y > 1) { f.y = -.02; f.x = Math.random(); }
     const x = f.x*W, y = f.y*H, l = 1.8 + f.r*1.1;
     for (let k = 0; k < 3; k++) {
